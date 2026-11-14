@@ -1,0 +1,4 @@
+cassandra-driver>=3.29.0
+streamlit>=1.37.0
+pandas>=2.0
+faker>=24.0
