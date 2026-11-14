@@ -22,6 +22,44 @@ Starting both would fail because they use the same port (9042).
 
 Start over with fresh data: `python seed.py --reset`.
 
+## Deploy a synthetic demo
+
+The app can use local Docker Cassandra or a hosted DataStax Astra DB. Keep the
+Astra token and secure-connect bundle out of Git.
+
+1. Create an Astra DB and a keyspace named `clinic`. Create a database token and
+   download its secure-connect bundle.
+2. Set these environment variables locally, then initialize and seed Astra:
+
+   ```powershell
+   $env:CASSANDRA_SECURE_CONNECT_BUNDLE = "C:\path\to\secure-connect.zip"
+   $env:CASSANDRA_TOKEN = Read-Host "Astra database token"
+   .\.venv311\Scripts\python.exe init_db.py
+   .\.venv311\Scripts\python.exe seed.py
+   ```
+
+3. Encode the bundle for Streamlit secrets:
+
+   ```powershell
+   [Convert]::ToBase64String([IO.File]::ReadAllBytes($env:CASSANDRA_SECURE_CONNECT_BUNDLE)) | Set-Clipboard
+   ```
+
+4. Deploy this repository on [Streamlit Community Cloud](https://share.streamlit.io):
+   choose `main` and `app.py`, and select **Python 3.11** in Advanced settings.
+   Add these secrets in the app settings, replacing the placeholders:
+
+   ```toml
+   [astra]
+   token = "your Astra database token"
+   secure_connect_bundle_b64 = """paste the bundle's base64 text here"""
+   ```
+
+5. To provision a doctor account in the hosted database, set the same two
+   environment variables locally and run `python create_doctor_account.py`.
+
+The app's login is intended for synthetic demo data only, not real patient data.
+Check the current Astra plan and pricing before creating a database.
+
 ## What it does
 
 **Login**

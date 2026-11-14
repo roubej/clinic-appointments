@@ -6,4 +6,5 @@ __pycache__/
 .env.*
 !.env.example
 .streamlit/secrets.toml
+secure-connect*.zip
 *.csv

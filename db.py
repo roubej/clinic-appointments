@@ -13,6 +13,7 @@ import secrets
 import uuid
 from datetime import date, datetime, time, timedelta, timezone
 
+from cassandra.auth import PlainTextAuthProvider
 from cassandra.cluster import Cluster
 from cassandra.query import BatchStatement, BatchType
 
@@ -80,7 +81,25 @@ def _password_hash(password: str, salt: bytes) -> bytes:
     return hashlib.scrypt(password.encode("utf-8"), salt=salt, n=2**14, r=8, p=1, dklen=64)
 
 
-def make_cluster() -> Cluster:
+def make_cluster(
+    secure_connect_bundle: str | None = None,
+    token: str | None = None,
+) -> Cluster:
+    secure_connect_bundle = secure_connect_bundle or os.getenv("CASSANDRA_SECURE_CONNECT_BUNDLE")
+    token = token or os.getenv("CASSANDRA_TOKEN")
+    if secure_connect_bundle:
+        if not token:
+            raise ValueError("CASSANDRA_TOKEN is required with a secure connect bundle.")
+        return Cluster(
+            cloud={
+                "secure_connect_bundle": secure_connect_bundle,
+                "use_default_tempdir": True,
+            },
+            auth_provider=PlainTextAuthProvider(username="token", password=token),
+        )
+    if token:
+        raise ValueError("CASSANDRA_SECURE_CONNECT_BUNDLE is required with CASSANDRA_TOKEN.")
+
     hosts = os.getenv("CASSANDRA_HOSTS", "127.0.0.1").split(",")
     port = int(os.getenv("CASSANDRA_PORT", "9042"))
     kwargs = {}
@@ -94,8 +113,12 @@ def make_cluster() -> Cluster:
 
 
 class Clinic:
-    def __init__(self) -> None:
-        self.cluster = make_cluster()
+    def __init__(
+        self,
+        secure_connect_bundle: str | None = None,
+        token: str | None = None,
+    ) -> None:
+        self.cluster = make_cluster(secure_connect_bundle, token)
         self.session = self.cluster.connect(KEYSPACE)
         self.stmts = {k: self.session.prepare(q) for k, q in QUERIES.items()}
 

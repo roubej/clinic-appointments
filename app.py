@@ -6,10 +6,13 @@ Times are UTC.
 """
 from __future__ import annotations
 
+import base64
+import tempfile
 from datetime import date
 
 import pandas as pd
 import streamlit as st
+from streamlit.errors import StreamlitSecretNotFoundError
 
 from db import DEPARTMENTS, Clinic, utc_now
 
@@ -18,15 +21,24 @@ st.set_page_config(page_title="Clinic Appointments", page_icon="🏥", layout="w
 
 @st.cache_resource(show_spinner="Connecting to Cassandra...")
 def get_clinic() -> Clinic:
-    return Clinic()
+    try:
+        astra = st.secrets["astra"]
+    except (KeyError, StreamlitSecretNotFoundError):
+        return Clinic()
+
+    encoded_bundle = "".join(astra["secure_connect_bundle_b64"].split())
+    bundle = base64.b64decode(encoded_bundle, validate=True)
+    with tempfile.NamedTemporaryFile(prefix="clinic-astra-", suffix=".zip", delete=False) as file:
+        file.write(bundle)
+    return Clinic(secure_connect_bundle=file.name, token=astra["token"])
 
 
 try:
     clinic = get_clinic()
 except Exception as exc:  # noqa: BLE001
     st.error(f"Cannot connect to Cassandra: {exc}\n\n"
-             "Start it with `docker compose up -d`, wait until it is healthy, "
-             "then run `python init_db.py` and `python seed.py`.")
+             "For local development, start Cassandra with `docker compose up -d`. "
+             "For Astra DB, configure the `[astra]` Streamlit secrets.")
     st.stop()
 
 

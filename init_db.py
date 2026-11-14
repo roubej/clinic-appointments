@@ -1,6 +1,7 @@
 """Create the keyspace and tables from schema.cql.  Usage: python init_db.py"""
 from __future__ import annotations
 
+import os
 import pathlib
 
 from db import KEYSPACE, make_cluster
@@ -13,14 +14,20 @@ def load_statements() -> list[str]:
 
 
 def main() -> None:
+    use_cloud = bool(os.getenv("CASSANDRA_SECURE_CONNECT_BUNDLE"))
     cluster = make_cluster()
-    session = cluster.connect()
-    for stmt in load_statements():
-        session.execute(stmt)
-        if stmt.upper().startswith("CREATE KEYSPACE"):
-            session.set_keyspace(KEYSPACE)
-        print("OK:", " ".join(stmt.split())[:70])
-    cluster.shutdown()
+    session = cluster.connect(KEYSPACE) if use_cloud else cluster.connect()
+    try:
+        for stmt in load_statements():
+            if use_cloud and stmt.upper().startswith("CREATE KEYSPACE"):
+                print(f"Using existing Astra keyspace {KEYSPACE}.")
+                continue
+            session.execute(stmt)
+            if stmt.upper().startswith("CREATE KEYSPACE"):
+                session.set_keyspace(KEYSPACE)
+            print("OK:", " ".join(stmt.split())[:70])
+    finally:
+        cluster.shutdown()
     print("\nSchema ready.")
 
 
